@@ -1,0 +1,4 @@
+<template><v-app><router-view/></v-app></template>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,sans-serif;color:#17223b;background:#fff8f9}*{box-sizing:border-box}body{margin:0;background:#fff8f9}.page{max-width:1180px;margin:auto;padding:20px 18px 100px}.title{color:#8b0d24;font-size:28px;font-weight:800}.muted{color:#697386}.card{background:white;border:1px solid #f1d9de;border-radius:18px;padding:18px;box-shadow:0 8px 28px rgba(101,7,24,.06)}.grid{display:grid;gap:14px}.burgundy{color:#8b0d24}.status{padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700}.WORKING{background:#eaf8ef;color:#16803b}.LATE{background:#fff4dd;color:#b76b00}.LEAVE{background:#ffe8eb;color:#b91c2f}.REMOTE{background:#f1eaff;color:#6d28d9}@media(max-width:700px){.page{padding:16px 14px 96px}.title{font-size:25px}}
+</style>

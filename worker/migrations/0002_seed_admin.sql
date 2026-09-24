@@ -1,0 +1,3 @@
+-- Không lưu mật khẩu mặc định trong Git.
+-- Sau khi migration, tạo tài khoản ADMIN bằng thao tác quản trị
+-- an toàn rồi đổi mật khẩu ngay.

@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "itca-mangement-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-09",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "qlnp-db",
+      "database_id": "a008540e-0e19-451c-a3a1-0755079b38ad",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "vars": {
+    "ALLOWED_ORIGIN": "https://itca-mangement.pages.dev"
+  }
+}
