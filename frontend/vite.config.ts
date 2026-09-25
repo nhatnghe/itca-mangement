@@ -3,4 +3,14 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
+
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://itca-mangement-api.itca-nhaht.workers.dev',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
 })

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../services/api'
@@ -25,7 +25,7 @@ async function login() {
 
     await router.push('/dashboard')
   } catch (e: any) {
-    error.value = e?.message || 'Đăng nhập không thành công'
+    error.value = e?.message || 'ÄÄƒng nháº­p khÃ´ng thÃ nh cÃ´ng'
   } finally {
     loading.value = false
   }
@@ -39,7 +39,7 @@ async function login() {
         <v-icon size="50">mdi-account-group</v-icon>
       </div>
 
-      <h1>ITCA-Mangement</h1>
+      <h1>ITCA-Management</h1>
       <p>Quản lý ngày làm việc</p>
 
       <v-text-field
@@ -74,7 +74,7 @@ async function login() {
         :loading="loading"
         @click="login"
       >
-        Đăng nhập
+        ĐĂNG NHẬP
       </v-btn>
     </div>
   </div>
