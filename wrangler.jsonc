@@ -6,6 +6,12 @@
   "observability": {
     "enabled": true
   },
+"services": [
+    {
+      "binding": "API",
+      "service": "itca-mangement-api"
+    }
+  ],
   "assets": {
     "directory": "./frontend/dist",
     "binding": "ASSETS",
