@@ -1,19 +1,42 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+
 import 'vuetify/styles'
-import { createVuetify } from 'vuetify'
-import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import '@mdi/font/css/materialdesignicons.css'
+
+import { createVuetify } from 'vuetify'
+import * as components from 'vuetify/components'
+import * as directives from 'vuetify/directives'
+import { aliases, mdi } from 'vuetify/iconsets/mdi'
+
 import App from './App.vue'
 import router from './router'
 
 const vuetify = createVuetify({
-  theme: { defaultTheme: 'itca', themes: { itca: { dark: false, colors: { primary: '#8B0D24', secondary: '#74091D', background: '#FFF8F9' } } } },
+  components,
+  directives,
+
+  theme: {
+    defaultTheme: 'itca',
+    themes: {
+      itca: {
+        dark: false,
+        colors: {
+          primary: '#8B0D24',
+          secondary: '#74091D',
+          background: '#FFF8F9',
+        },
+      },
+    },
+  },
+
   icons: {
     defaultSet: 'mdi',
     aliases,
-    sets: { mdi }
-  }
+    sets: {
+      mdi,
+    },
+  },
 })
 
 createApp(App)
