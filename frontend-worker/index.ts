@@ -11,12 +11,27 @@ if (url.pathname === '/api/proxy-test') {
     headers: { 'Content-Type': 'text/plain' }
   })
 }
+
+if (url.pathname === '/api/health') {
+  const target = 'https://itca-mangement-api.itca-nhaht.workers.dev/api/health'
+
+  const response = await fetch(target)
+  const body = await response.text()
+
+  return Response.json({
+    target,
+    backendStatus: response.status,
+    backendBody: body
+  })
+}
+
     // API: proxy sang backend Worker
     if (url.pathname.startsWith('/api/')) {
       const target = new URL(
         url.pathname + url.search,
         'https://itca-mangement-api.itca-nhaht.workers.dev'
       )
+
 
       const headers = new Headers(request.headers)
       headers.delete('host')
