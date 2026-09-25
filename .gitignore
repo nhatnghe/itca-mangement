@@ -6,3 +6,6 @@ dist/
 .env.*
 .DS_Store
 *.log
+
+*.tsbuildinfo
+cai-dat.txt
