@@ -21,17 +21,15 @@ if (url.pathname === '/api/proxy-test') {
       const headers = new Headers(request.headers)
       headers.delete('host')
 
-      return fetch(
-        new Request(target.toString(), {
-          method: request.method,
-          headers,
-          body:
-            request.method === 'GET' || request.method === 'HEAD'
-              ? undefined
-              : request.body,
-          redirect: 'manual'
-        })
-      )
+return fetch(target.toString(), {
+  method: request.method,
+  headers,
+  body:
+    request.method === 'GET' || request.method === 'HEAD'
+      ? undefined
+      : await request.arrayBuffer(),
+  redirect: 'manual'
+})
     }
 
     // Các request còn lại: Vue SPA
