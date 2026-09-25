@@ -5,7 +5,12 @@ interface Env {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
-
+if (url.pathname === '/api/proxy-test') {
+  return new Response('FRONTEND WORKER PROXY OK', {
+    status: 200,
+    headers: { 'Content-Type': 'text/plain' }
+  })
+}
     // API: proxy sang backend Worker
     if (url.pathname.startsWith('/api/')) {
       const target = new URL(
