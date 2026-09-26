@@ -1,28 +1,39 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AppShell from '../components/AppShell.vue'
 import { api } from '../services/api'
 
 const items = ref<any[]>([])
 const me = ref<any>(null)
 const loading = ref(true)
-
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+async function loadDashboard() {
+  const dashboard = await api('/api/dashboard/today')
+  items.value = dashboard.items || []
+}
 onMounted(async () => {
   try {
-    const [dashboard, currentUser] = await Promise.all([
-      api('/api/dashboard/today'),
+    const [, currentUser] = await Promise.all([
+      loadDashboard(),
       api('/api/auth/me'),
     ])
 
-    items.value = dashboard.items || []
     me.value = currentUser.user
   } catch {
     // AppShell sẽ xử lý trường hợp session hết hạn
   } finally {
     loading.value = false
+	    refreshTimer = setInterval(() => {
+      loadDashboard().catch(() => {})
+    }, 60000)
   }
 })
-
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+})
 const countStatus = (status: string) =>
   items.value.filter(x => x.status === status).length
 
@@ -33,11 +44,15 @@ const canApprove = computed(() =>
 
 function statusText(status: string) {
   const labels: Record<string, string> = {
-    WORKING: 'Đang làm',
+    NORMAL: 'Bình thường',
+    WORKING: 'Đang làm việc',
+    NON_WORKING: 'Ngày nghỉ theo QĐ',
     LATE: 'Đi muộn',
     EARLY_LEAVE: 'Về sớm',
-    LEAVE: 'Nghỉ phép',
-    REMOTE: 'Từ xa',
+    MORNING_LEAVE: 'Nghỉ buổi sáng',
+    AFTERNOON_LEAVE: 'Nghỉ buổi chiều',
+    FULL_DAY_LEAVE: 'Nghỉ phép',
+    REMOTE: 'Làm việc từ xa',
   }
 
   return labels[status] || status
@@ -68,37 +83,53 @@ function statusText(status: string) {
         </router-link>
       </div>
 
-      <section class="summary">
-        <div class="card">
-          <b>{{ items.length }}</b>
-          <span>Tổng nhân sự</span>
-        </div>
+    <section class="summary">
+  <div class="card">
+    <b>{{ items.length }}</b>
+    <span>Tổng nhân sự</span>
+  </div>
 
-        <div class="card green">
-          <b>{{ countStatus('WORKING') }}</b>
-          <span>Đang làm việc</span>
-        </div>
+  <div class="card green">
+    <b>{{ countStatus('WORKING') }}</b>
+    <span>Đang làm việc</span>
+  </div>
 
-        <div class="card amber">
-          <b>{{ countStatus('LATE') }}</b>
-          <span>Đi muộn</span>
-        </div>
+  <div class="card">
+    <b>{{ countStatus('NORMAL') }}</b>
+    <span>Bình thường</span>
+  </div>
 
-        <div class="card orange">
-          <b>{{ countStatus('EARLY_LEAVE') }}</b>
-          <span>Về sớm</span>
-        </div>
+  <div class="card amber">
+    <b>{{ countStatus('LATE') }}</b>
+    <span>Đi muộn</span>
+  </div>
 
-        <div class="card red">
-          <b>{{ countStatus('LEAVE') }}</b>
-          <span>Nghỉ phép</span>
-        </div>
+  <div class="card orange">
+    <b>{{ countStatus('EARLY_LEAVE') }}</b>
+    <span>Về sớm</span>
+  </div>
 
-        <div class="card purple">
-          <b>{{ countStatus('REMOTE') }}</b>
-          <span>Làm từ xa</span>
-        </div>
-      </section>
+  <div class="card red">
+    <b>
+      {{
+        countStatus('MORNING_LEAVE') +
+        countStatus('AFTERNOON_LEAVE') +
+        countStatus('FULL_DAY_LEAVE')
+      }}
+    </b>
+    <span>Nghỉ phép</span>
+  </div>
+
+  <div class="card purple">
+    <b>{{ countStatus('REMOTE') }}</b>
+    <span>Làm việc từ xa</span>
+  </div>
+
+  <div class="card">
+    <b>{{ countStatus('NON_WORKING') }}</b>
+    <span>Ngày nghỉ theo QĐ</span>
+  </div>
+</section>
 
       <h2 class="burgundy">
         Tình hình hôm nay

@@ -140,6 +140,12 @@ function typeName(type: string) {
   return names[type] || type
 }
 
+function minuteValue(x: any) {
+  return x.request_type === 'LATE' || x.request_type === 'EARLY_LEAVE'
+    ? Number(x.minutes || 0)
+    : '—'
+}
+
 onMounted(async () => {
   try {
     await loadUsers()
@@ -152,10 +158,11 @@ onMounted(async () => {
 
 <template>
   <AppShell>
-    <main class="page">
+    <main class="page stats-page">
       <div class="head">
         <div>
           <div class="title">Thống kê</div>
+
           <div class="muted">
             Tra cứu tình hình làm việc của tất cả nhân sự theo khoảng thời gian.
           </div>
@@ -192,6 +199,7 @@ onMounted(async () => {
         />
 
         <v-btn
+          class="search-btn"
           color="#8b0d24"
           :loading="loading"
           @click="load"
@@ -209,6 +217,7 @@ onMounted(async () => {
         {{ error }}
       </v-alert>
 
+      <!-- Tổng quan -->
       <div class="stats">
         <div class="card">
           <v-icon>mdi-briefcase</v-icon>
@@ -242,6 +251,7 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- Chi tiết -->
       <div class="card detail">
         <h3>Chi tiết theo loại yêu cầu</h3>
 
@@ -252,56 +262,99 @@ onMounted(async () => {
           Chưa có dữ liệu trong khoảng thời gian đã chọn.
         </div>
 
-        <div
-          v-else
-          class="table-wrap"
-        >
-          <table>
-            <thead>
-              <tr>
-                <th>Nhân sự</th>
-                <th>Phòng</th>
-                <th>Loại</th>
-                <th>Số lượt</th>
-                <th>Số phút</th>
-              </tr>
-            </thead>
+        <template v-else>
+          <!-- Desktop -->
+          <div class="desktop-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nhân sự</th>
+                  <th>Phòng</th>
+                  <th>Loại</th>
+                  <th>Số lượt</th>
+                  <th>Số phút</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              <tr
-                v-for="(x, index) in items"
-                :key="`${x.user_id}-${x.request_type}-${index}`"
+              <tbody>
+                <tr
+                  v-for="(x, index) in items"
+                  :key="`${x.user_id}-${x.request_type}-${index}`"
+                >
+                  <td>
+                    <b>{{ x.full_name }}</b>
+                    <small>{{ x.username }}</small>
+                  </td>
+
+                  <td>{{ x.department || '—' }}</td>
+
+                  <td>{{ typeName(x.request_type) }}</td>
+
+                  <td>{{ x.count }}</td>
+
+                  <td>{{ minuteValue(x) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile / tablet dọc -->
+          <div class="mobile-list">
+            <article
+              v-for="(x, index) in items"
+              :key="`detail-${x.user_id}-${x.request_type}-${index}`"
+              class="mobile-card"
+            >
+              <div class="mobile-card-header">
+                <div>
+                  <div class="person-name">
+                    {{ x.full_name }}
+                  </div>
+
+                  <div class="person-sub">
+                    {{ x.username }}
+                  </div>
+                </div>
+
+                <span class="request-badge">
+                  {{ typeName(x.request_type) }}
+                </span>
+              </div>
+
+              <div class="mobile-row">
+                <span>Phòng</span>
+                <b>{{ x.department || '—' }}</b>
+              </div>
+
+              <div class="mobile-row">
+                <span>Số lượt</span>
+                <b>{{ x.count }}</b>
+              </div>
+
+              <div
+                v-if="
+                  x.request_type === 'LATE' ||
+                  x.request_type === 'EARLY_LEAVE'
+                "
+                class="mobile-row"
               >
-                <td>
-                  <b>{{ x.full_name }}</b>
-                  <small>{{ x.username }}</small>
-                </td>
-
-                <td>{{ x.department || '—' }}</td>
-
-                <td>{{ typeName(x.request_type) }}</td>
-
-                <td>{{ x.count }}</td>
-
-                <td>
-                  {{ x.request_type === 'LATE' || x.request_type === 'EARLY_LEAVE'
-                    ? Number(x.minutes || 0)
-                    : '—'
-                  }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                <span>Số phút</span>
+                <b>{{ Number(x.minutes || 0) }}</b>
+              </div>
+            </article>
+          </div>
+        </template>
       </div>
 
+      <!-- Tổng hợp nhân sự -->
       <div
         v-if="!selectedUser && people.length"
         class="card detail"
       >
         <h3>Tổng hợp theo nhân sự</h3>
 
-        <div class="table-wrap">
+        <!-- Desktop -->
+        <div class="desktop-table">
           <table>
             <thead>
               <tr>
@@ -324,6 +377,7 @@ onMounted(async () => {
                   <b>{{ person.full_name }}</b>
                   <small>{{ person.department || '—' }}</small>
                 </td>
+
                 <td>{{ person.late }}</td>
                 <td>{{ person.lateMinutes }}</td>
                 <td>{{ person.early }}</td>
@@ -334,12 +388,68 @@ onMounted(async () => {
             </tbody>
           </table>
         </div>
+
+        <!-- Mobile / tablet dọc -->
+        <div class="mobile-list">
+          <article
+            v-for="person in people"
+            :key="`person-${person.user_id}`"
+            class="mobile-card"
+          >
+            <div class="person-name">
+              {{ person.full_name }}
+            </div>
+
+            <div class="person-sub">
+              {{ person.department || '—' }}
+            </div>
+
+            <div class="person-grid">
+              <div>
+                <span>Đi muộn</span>
+                <b>{{ person.late }}</b>
+              </div>
+
+              <div>
+                <span>Phút muộn</span>
+                <b>{{ person.lateMinutes }}</b>
+              </div>
+
+              <div>
+                <span>Về sớm</span>
+                <b>{{ person.early }}</b>
+              </div>
+
+              <div>
+                <span>Nghỉ sáng</span>
+                <b>{{ person.morning }}</b>
+              </div>
+
+              <div>
+                <span>Nghỉ chiều</span>
+                <b>{{ person.afternoon }}</b>
+              </div>
+
+              <div>
+                <span>Nghỉ phép</span>
+                <b>{{ person.leave }}</b>
+              </div>
+            </div>
+          </article>
+        </div>
       </div>
     </main>
   </AppShell>
 </template>
 
 <style scoped>
+.stats-page {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
 .head {
   display: flex;
   justify-content: space-between;
@@ -349,20 +459,29 @@ onMounted(async () => {
 
 .filters {
   display: grid;
-  grid-template-columns: 180px 180px minmax(220px, 1fr) auto;
+  grid-template-columns:
+    minmax(150px, 180px)
+    minmax(150px, 180px)
+    minmax(200px, 1fr)
+    auto;
   gap: 12px;
   align-items: center;
   margin-top: 20px;
 }
 
+.search-btn {
+  min-height: 40px;
+}
+
 .stats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin: 16px 0;
 }
 
 .stats .card {
+  min-width: 0;
   text-align: center;
 }
 
@@ -376,6 +495,7 @@ onMounted(async () => {
 .stats span,
 .stats small {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .stats small {
@@ -420,7 +540,8 @@ onMounted(async () => {
   border-bottom: 1px solid #eee;
 }
 
-.table-wrap {
+.desktop-table {
+  width: 100%;
   overflow-x: auto;
 }
 
@@ -440,6 +561,7 @@ th {
 td {
   padding: 12px 14px;
   border-top: 1px solid #eee;
+  vertical-align: top;
 }
 
 td small {
@@ -449,30 +571,169 @@ td small {
 }
 
 .empty {
-  padding: 30px;
+  padding: 30px 16px;
   text-align: center;
   color: #697386;
 }
 
-@media (max-width: 1000px) {
+.mobile-list {
+  display: none;
+}
+
+.mobile-card {
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.mobile-card:last-child {
+  border-bottom: 0;
+}
+
+.mobile-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.person-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.person-sub {
+  margin-top: 3px;
+  color: #697386;
+  font-size: 12px;
+}
+
+.request-badge {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border-radius: 12px;
+  color: #8b0d24;
+  background: #fff0f2;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mobile-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  border-top: 1px dashed #eee;
+}
+
+.mobile-row span {
+  color: #697386;
+}
+
+.mobile-row b {
+  text-align: right;
+}
+
+.person-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.person-grid > div {
+  padding: 10px;
+  text-align: center;
+  background: #fff7f8;
+  border-radius: 8px;
+}
+
+.person-grid span {
+  display: block;
+  min-height: 32px;
+  color: #697386;
+  font-size: 12px;
+}
+
+.person-grid b {
+  display: block;
+  margin-top: 4px;
+  color: #8b0d24;
+  font-size: 18px;
+}
+
+@media (max-width: 1100px) {
   .stats {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 800px) {
+@media (max-width: 1024px) {
   .filters {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .desktop-table {
+    display: none;
+  }
+
+  .mobile-list {
+    display: block;
+  }
+
+  .detail {
+    overflow: visible;
   }
 }
 
 @media (max-width: 600px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
+  .stats-page {
+    overflow-x: hidden;
   }
 
   .filters {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .search-btn {
+    width: 100%;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats .card {
+    padding: 14px 8px;
+  }
+
+  .stats b {
+    font-size: 26px;
+  }
+
+  .mobile-card {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 400px) {
+  .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .person-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mobile-card-header {
+    flex-direction: column;
   }
 }
 </style>

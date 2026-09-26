@@ -25,7 +25,7 @@ async function login() {
 
     await router.push('/dashboard')
   } catch (e: any) {
-    error.value = e?.message || 'ÄÄƒng nháº­p khÃ´ng thÃ nh cÃ´ng'
+    error.value = e?.message || 'Đăng nhập không thành công'
   } finally {
     loading.value = false
   }
