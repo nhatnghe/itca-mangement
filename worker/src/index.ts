@@ -1,5 +1,12 @@
 export interface Env { DB: D1Database; ALLOWED_ORIGIN: string; BOOTSTRAP_SECRET?: string }
-type User = { id:number; username:string; full_name:string; role_code:string; department_id:number|null }
+type User = {
+  id: number
+  username: string
+  full_name: string
+  role_code: string
+  department_id: number | null
+  can_create_request_for_others: number
+}
 const TYPES = new Set([
   'LATE',
   'EARLY_LEAVE',
@@ -40,7 +47,7 @@ function randomHex(n=32){const b=new Uint8Array(n);crypto.getRandomValues(b);ret
 function cookie(token:string){return `itca_session=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=28800`}
 function clearCookie(){return 'itca_session=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0'}
 function tokenFrom(req:Request){return (req.headers.get('Cookie')||'').match(/(?:^|;\s*)itca_session=([^;]+)/)?.[1]||null}
-async function currentUser(req:Request,env:Env){const t=tokenFrom(req);if(!t)return null;const th=await sha(t);return env.DB.prepare(`SELECT u.id,u.username,u.full_name,r.code role_code,u.department_id FROM SESSIONS s JOIN USERS u ON u.id=s.user_id JOIN ROLES r ON r.id=u.role_id WHERE s.token_hash=? AND s.expires_at>datetime('now') AND u.active=1`).bind(th).first<User>()}
+async function currentUser(req:Request,env:Env){const t=tokenFrom(req);if(!t)return null;const th=await sha(t);return env.DB.prepare(`SELECT u.id,u.username,u.full_name,r.code role_code,u.department_id,u.can_create_request_for_others FROM SESSIONS s JOIN USERS u ON u.id=s.user_id JOIN ROLES r ON r.id=u.role_id WHERE s.token_hash=? AND s.expires_at>datetime('now') AND u.active=1`).bind(th).first<User>()}
 function manager(u:User){return u.role_code==='ADMIN'||u.role_code==='TRUONG_PHONG'}
 type WorkCalendarConfig = {
   morning_start: string
@@ -49,7 +56,12 @@ type WorkCalendarConfig = {
   afternoon_end: string
   weekdays: number[]
 }
-
+function canCreateForOthers(u: User) {
+  return (
+    u.role_code === 'ADMIN' ||
+    u.can_create_request_for_others === 1
+  )
+}
 function vietnamDateParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -738,6 +750,7 @@ if (url.pathname === '/api/admin/users' && req.method === 'GET') {
       ro.code AS role_code,
       ro.name AS role_name,
       u.active,
+      u.can_create_request_for_others,
       u.created_at,
       u.updated_at
     FROM USERS u
@@ -1006,9 +1019,114 @@ if (adminPasswordMatch && req.method === 'PUT') {
   return json({ ok: true }, 200, h)
 }
 
+// ADMIN cấp hoặc thu hồi quyền tạo yêu cầu thay người khác
+const delegationMatch = url.pathname.match(
+  /^\/api\/admin\/users\/(\d+)\/request-delegation$/
+)
+
+if (delegationMatch && req.method === 'PUT') {
+  if (u.role_code !== 'ADMIN') {
+    return json(
+      { message: 'Chỉ ADMIN được cấp quyền nhập thay' },
+      403,
+      h
+    )
+  }
+
+  const targetId = Number(delegationMatch[1])
+
+  const body = await req.json<{
+    enabled?: boolean
+  }>()
+
+  if (typeof body.enabled !== 'boolean') {
+    return json(
+      { message: 'enabled phải là true hoặc false' },
+      400,
+      h
+    )
+  }
+
+  const target = await env.DB.prepare(`
+    SELECT id, active
+    FROM USERS
+    WHERE id = ?
+  `).bind(targetId).first<{
+    id: number
+    active: number
+  }>()
+
+  if (!target) {
+    return json(
+      { message: 'Không tìm thấy người dùng' },
+      404,
+      h
+    )
+  }
+
+  if (body.enabled && target.active !== 1) {
+    return json(
+      { message: 'Không thể cấp quyền cho tài khoản đã khóa' },
+      400,
+      h
+    )
+  }
+
+  await env.DB.prepare(`
+    UPDATE USERS
+    SET
+      can_create_request_for_others = ?,
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(body.enabled ? 1 : 0, targetId).run()
+
+  return json({
+    ok: true,
+    user_id: targetId,
+    can_create_request_for_others: body.enabled ? 1 : 0
+  }, 200, h)
+}
+
 // ================== END ADMIN: USER MANAGEMENT ==================
 
- if(url.pathname==='/api/users'&&req.method==='GET'){const q=manager(u)?`SELECT u.id,u.full_name,u.username,r.code role_code,d.name department FROM USERS u JOIN ROLES r ON r.id=u.role_id LEFT JOIN DEPARTMENTS d ON d.id=u.department_id WHERE u.active=1 ORDER BY u.full_name`:`SELECT u.id,u.full_name,u.username,r.code role_code,d.name department FROM USERS u JOIN ROLES r ON r.id=u.role_id LEFT JOIN DEPARTMENTS d ON d.id=u.department_id WHERE u.id=${u.id}`;const r=await env.DB.prepare(q).all();return json({items:r.results},200,h)}
+if (url.pathname === '/api/users' && req.method === 'GET') {
+  const canViewAll = manager(u) || canCreateForOthers(u)
+
+  const query = canViewAll
+    ? `
+      SELECT
+        us.id,
+        us.full_name,
+        us.username,
+        r.code AS role_code,
+        d.name AS department
+      FROM USERS us
+      JOIN ROLES r ON r.id = us.role_id
+      LEFT JOIN DEPARTMENTS d ON d.id = us.department_id
+      WHERE us.active = 1
+      ORDER BY us.full_name
+    `
+    : `
+      SELECT
+        us.id,
+        us.full_name,
+        us.username,
+        r.code AS role_code,
+        d.name AS department
+      FROM USERS us
+      JOIN ROLES r ON r.id = us.role_id
+      LEFT JOIN DEPARTMENTS d ON d.id = us.department_id
+      WHERE us.id = ?
+        AND us.active = 1
+    `
+
+  const statement = env.DB.prepare(query)
+  const result = canViewAll
+    ? await statement.all()
+    : await statement.bind(u.id).all()
+
+  return json({ items: result.results }, 200, h)
+}
 if (
   url.pathname === '/api/daily-work/today' &&
   req.method === 'PUT'
@@ -1520,9 +1638,11 @@ if (url.pathname === '/api/leave-requests' && req.method === 'GET') {
 
   const result = await env.DB.prepare(`
     SELECT
-      lr.id,
-      lr.user_id,
-      us.full_name,
+lr.id,
+lr.user_id,
+lr.created_by_user_id,
+creator.full_name AS created_by_name,
+us.full_name,
       us.username,
       d.name AS department,
       lr.request_type,
@@ -1537,9 +1657,10 @@ if (url.pathname === '/api/leave-requests' && req.method === 'GET') {
       lr.status,
       lr.requested_at,
       lr.updated_at
-    FROM LEAVE_REQUESTS lr
-    JOIN USERS us ON us.id = lr.user_id
-    LEFT JOIN DEPARTMENTS d ON d.id = us.department_id
+FROM LEAVE_REQUESTS lr
+JOIN USERS us ON us.id = lr.user_id
+LEFT JOIN USERS creator ON creator.id = lr.created_by_user_id
+LEFT JOIN DEPARTMENTS d ON d.id = us.department_id
     ${where}
     ORDER BY
       COALESCE(lr.start_date, substr(lr.requested_at, 1, 10)) DESC,
@@ -1554,6 +1675,46 @@ if (url.pathname === '/api/leave-requests' && req.method === 'GET') {
 
  if (url.pathname === '/api/leave-requests' && req.method === 'POST') {
   const b = await req.json<any>()
+    // Người thực hiện thao tác luôn lấy từ phiên đăng nhập.
+  const createdByUserId = u.id
+
+  // Nếu không chọn người khác, mặc định xin phép cho chính mình.
+  const targetUserId =
+    b.user_id === undefined || b.user_id === null
+      ? u.id
+      : Number(b.user_id)
+
+  if (
+    !Number.isSafeInteger(targetUserId) ||
+    targetUserId <= 0
+  ) {
+    return json({
+      message: 'Người được xin phép không hợp lệ'
+    }, 400, h)
+  }
+
+  // Không có quyền thì tuyệt đối không được tạo thay.
+  if (targetUserId !== u.id && !canCreateForOthers(u)) {
+    return json({
+      message: 'Bạn không có quyền tạo yêu cầu thay người khác'
+    }, 403, h)
+  }
+
+  const targetUser = await env.DB.prepare(`
+    SELECT id, full_name, active
+    FROM USERS
+    WHERE id = ?
+  `).bind(targetUserId).first<{
+    id: number
+    full_name: string
+    active: number
+  }>()
+
+  if (!targetUser || targetUser.active !== 1) {
+    return json({
+      message: 'Người được xin phép không tồn tại hoặc đã bị khóa'
+    }, 400, h)
+  }
 
   if (!TYPES.has(b.request_type)) {
     return json({ message: 'Loại yêu cầu không hợp lệ' }, 400, h)
@@ -1614,7 +1775,7 @@ if (url.pathname === '/api/leave-requests' && req.method === 'GET') {
           >= date(?)
     LIMIT 1
   `).bind(
-    u.id,
+    targetUserId,
     b.request_type,
     endDate,
     startDate
@@ -1645,6 +1806,7 @@ const requestStatus =
 const result = await env.DB.prepare(`
   INSERT INTO LEAVE_REQUESTS (
     user_id,
+    created_by_user_id,
     request_type,
     start_date,
     end_date,
@@ -1658,9 +1820,10 @@ const result = await env.DB.prepare(`
     note,
     status
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `).bind(
-  u.id,
+  targetUserId,
+  createdByUserId,
   b.request_type,
   startDate,
   endDate,

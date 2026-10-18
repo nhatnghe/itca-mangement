@@ -9,6 +9,8 @@ firstDay.setDate(firstDay.getDate() - 30)
 
 const from = ref(firstDay.toISOString().slice(0, 10))
 const to = ref(today)
+const fromDisplay = ref('')
+const toDisplay = ref('')
 const selectedUser = ref<number | null>(null)
 
 const users = ref<any[]>([])
@@ -17,6 +19,59 @@ const workDays = ref(0)
 const remoteDays = ref(0)
 const loading = ref(false)
 const error = ref('')
+function formatDate(value: string) {
+  if (!value) return ''
+
+  const parts = value.split('-')
+  if (parts.length !== 3) return value
+
+  return `${parts[2]}/${parts[1]}/${parts[0]}`
+}
+
+fromDisplay.value = formatDate(from.value)
+toDisplay.value = formatDate(to.value)
+
+function parseDisplayDate(value: string) {
+  const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+
+  if (!match) return ''
+
+  const [, day, month, year] = match
+
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  )
+
+  if (
+    date.getFullYear() !== Number(year) ||
+    date.getMonth() !== Number(month) - 1 ||
+    date.getDate() !== Number(day)
+  ) {
+    return ''
+  }
+
+  return `${year}-${month}-${day}`
+}
+
+function applyFromDate() {
+  const value = parseDisplayDate(fromDisplay.value)
+
+  if (value) {
+    from.value = value
+    fromDisplay.value = formatDate(value)
+  }
+}
+
+function applyToDate() {
+  const value = parseDisplayDate(toDisplay.value)
+
+  if (value) {
+    to.value = value
+    toDisplay.value = formatDate(value)
+  }
+}
 
 async function loadUsers() {
   const data = await api('/api/search-users')
@@ -171,20 +226,26 @@ onMounted(async () => {
 
       <div class="card filters">
         <v-text-field
-          v-model="from"
-          type="date"
-          label="Từ ngày"
-          density="compact"
-          hide-details
-        />
+  v-model="fromDisplay"
+  type="text"
+  label="Từ ngày"
+  placeholder="dd/MM/yyyy"
+  density="compact"
+  hide-details
+  @blur="applyFromDate"
+  @keyup.enter="applyFromDate"
+/>
 
         <v-text-field
-          v-model="to"
-          type="date"
-          label="Đến ngày"
-          density="compact"
-          hide-details
-        />
+  v-model="toDisplay"
+  type="text"
+  label="Đến ngày"
+  placeholder="dd/MM/yyyy"
+  density="compact"
+  hide-details
+  @blur="applyToDate"
+  @keyup.enter="applyToDate"
+/>
 
         <v-select
           v-model="selectedUser"

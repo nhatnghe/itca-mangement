@@ -230,10 +230,10 @@ nav a {
   }
 
   .brand small,
-  .who span,
-  .who button {
-    display: none;
-  }
+  .who span{
+  display: none;
+	}
+
 
   nav {
     justify-content: flex-start;

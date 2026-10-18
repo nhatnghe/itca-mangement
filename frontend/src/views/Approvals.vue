@@ -1,1 +1,121 @@
-<script setup lang="ts">import{ref,onMounted}from'vue';import AppShell from'../components/AppShell.vue';import{api}from'../services/api';const items=ref<any[]>([]),err=ref('');async function load(){try{items.value=(await api('/api/approvals/pending')).items}catch(e:any){err.value=e.message}}async function act(id:number,a:string){await api(`/api/leave-requests/${id}/${a}`,{method:'POST',body:'{}'});load()}onMounted(load)</script><template><AppShell><main class="page"><div class="title">Phê duyệt yêu cầu</div><p class="muted">Danh sách yêu cầu đang chờ xử lý</p><v-alert v-if="err" type="warning">{{err}}</v-alert><div class="card"><div class="req" v-for="x in items"><div><b>{{x.full_name}}</b><small>{{x.request_type}} · {{x.start_date}} → {{x.end_date}}<br>{{x.reason}}</small></div><div><v-btn size="small" variant="outlined" color="#8b0d24" @click="act(x.id,'reject')">Từ chối</v-btn> <v-btn size="small" color="#8b0d24" @click="act(x.id,'approve')">Duyệt</v-btn></div></div><div v-if="!items.length&&!err" class="muted">Không có yêu cầu chờ duyệt.</div></div></main></AppShell></template><style scoped>.req{display:flex;justify-content:space-between;gap:20px;padding:16px 0;border-bottom:1px solid #eee}.req small{display:block;color:#697386;margin-top:5px}@media(max-width:600px){.req{display:block}.req>div:last-child{margin-top:12px}}</style>
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import AppShell from '../components/AppShell.vue'
+import { api } from '../services/api'
+
+const items = ref<any[]>([])
+const err = ref('')
+
+function formatDate(value?: string | null) {
+  if (!value) return '—'
+
+  const parts = value.slice(0, 10).split('-')
+  if (parts.length !== 3) return value
+
+  return `${parts[2]}/${parts[1]}/${parts[0]}`
+}
+
+async function load() {
+  try {
+    items.value = (await api('/api/approvals/pending')).items
+  } catch (e: any) {
+    err.value = e.message
+  }
+}
+
+async function act(id: number, action: string) {
+  await api(`/api/leave-requests/${id}/${action}`, {
+    method: 'POST',
+    body: '{}',
+  })
+
+  load()
+}
+
+onMounted(load)
+</script>
+
+<template>
+  <AppShell>
+    <main class="page">
+      <div class="title">Phê duyệt yêu cầu</div>
+      <p class="muted">Danh sách yêu cầu đang chờ xử lý</p>
+
+      <v-alert v-if="err" type="warning">
+        {{ err }}
+      </v-alert>
+
+      <div class="card">
+        <div
+          v-for="x in items"
+          :key="x.id"
+          class="req"
+        >
+          <div>
+            <b>{{ x.full_name }}</b>
+            <small>
+              {{ x.request_type }} ·
+              {{ formatDate(x.start_date) }}
+              →
+              {{ formatDate(x.end_date) }}
+              <br>
+              {{ x.reason }}
+            </small>
+          </div>
+
+          <div>
+            <v-btn
+              size="small"
+              variant="outlined"
+              color="#8b0d24"
+              @click="act(x.id, 'reject')"
+            >
+              Từ chối
+            </v-btn>
+
+            <v-btn
+              size="small"
+              color="#8b0d24"
+              @click="act(x.id, 'approve')"
+            >
+              Duyệt
+            </v-btn>
+          </div>
+        </div>
+
+        <div
+          v-if="!items.length && !err"
+          class="muted"
+        >
+          Không có yêu cầu chờ duyệt.
+        </div>
+      </div>
+    </main>
+  </AppShell>
+</template>
+
+<style scoped>
+.req {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.req small {
+  display: block;
+  color: #697386;
+  margin-top: 5px;
+}
+
+@media (max-width: 600px) {
+  .req {
+    display: block;
+  }
+
+  .req > div:last-child {
+    margin-top: 12px;
+  }
+}
+</style>

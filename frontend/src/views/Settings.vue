@@ -30,6 +30,7 @@ const weekdays = ref<number[]>([1, 2, 3, 4, 5])
 
 const calendarDays = ref<CalendarDay[]>([])
 const dayDate = ref('')
+const dayDateDisplay = ref('')
 const dayType = ref<0 | 1>(0)
 const dayName = ref('')
 const savingCalendar = ref(false)
@@ -203,8 +204,9 @@ async function saveSpecialDay() {
       })
     })
 
-    dayDate.value = ''
-    dayName.value = ''
+dayDate.value = ''
+dayDateDisplay.value = ''
+dayName.value = ''
 
     success.value =
       dayType.value === 1
@@ -220,9 +222,51 @@ async function saveSpecialDay() {
   }
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return '—'
+
+  const parts = value.slice(0, 10).split('-')
+  if (parts.length !== 3) return value
+
+  return `${parts[2]}/${parts[1]}/${parts[0]}`
+}
+
+function parseDisplayDate(value: string) {
+  const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+
+  if (!match) return ''
+
+  const [, day, month, year] = match
+
+  const parsed = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  )
+
+  if (
+    parsed.getFullYear() !== Number(year) ||
+    parsed.getMonth() !== Number(month) - 1 ||
+    parsed.getDate() !== Number(day)
+  ) {
+    return ''
+  }
+
+  return `${year}-${month}-${day}`
+}
+
+function applyDayDate() {
+  const value = parseDisplayDate(dayDateDisplay.value)
+
+  if (value) {
+    dayDate.value = value
+    dayDateDisplay.value = formatDate(value)
+  }
+}
+
 async function deleteSpecialDay(item: CalendarDay) {
   const ok = window.confirm(
-    `Xóa cấu hình ngày ${item.work_date} - ${item.name}?`
+    `Xóa cấu hình ngày ${formatDate(item.work_date)} - ${item.name}?`
   )
 
   if (!ok) return
@@ -401,13 +445,16 @@ onMounted(load)
 
           <div class="card">
             <div class="special-grid">
-              <v-text-field
-                v-model="dayDate"
-                label="Ngày"
-                type="date"
-                variant="outlined"
-                hide-details
-              />
+         <v-text-field
+  v-model="dayDateDisplay"
+  label="Ngày"
+  type="text"
+  placeholder="dd/MM/yyyy"
+  variant="outlined"
+  hide-details
+  @blur="applyDayDate"
+  @keyup.enter="applyDayDate"
+/>
 
               <v-select
                 v-model="dayType"
@@ -452,7 +499,7 @@ onMounted(load)
               class="card calendar-item"
             >
               <div>
-                <strong>{{ item.work_date }}</strong>
+                <strong>{{ formatDate(item.work_date) }}</strong>
 
                 <div class="day-name">
                   {{ item.name }}

@@ -21,6 +21,9 @@ const today = localToday()
 const type = ref('MORNING_LEAVE')
 const date = ref(today)
 const end = ref(today)
+const dateDisplay = ref('')
+const endDisplay = ref('')
+
 const startTime = ref('')
 const endTime = ref('')
 const expectedMinutes = ref<number | null>(null)
@@ -31,6 +34,33 @@ const note = ref('')
 
 const users = ref<any[]>([])
 const me = ref<any>(null)
+const targetUserId = ref<number | null>(null)
+
+const canCreateForOthers = computed(() =>
+  me.value?.role_code === 'ADMIN' ||
+  Number(me.value?.can_create_request_for_others) === 1
+)
+
+const targetUsers = computed(() => {
+  const list = users.value.filter(
+    (x: any) => Number.isSafeInteger(Number(x.id))
+  )
+
+  if (
+    me.value?.id &&
+    !list.some((x: any) => Number(x.id) === Number(me.value.id))
+  ) {
+    return [
+      {
+        id: me.value.id,
+        full_name: me.value.full_name
+      },
+      ...list
+    ]
+  }
+
+  return list
+})
 const morningStart = ref('08:00')
 const morningEnd = ref('11:30')
 const afternoonStart = ref('13:00')
@@ -50,6 +80,10 @@ const deletingId = ref<number | null>(null)
 
 const filterFrom = ref('')
 const filterTo = ref('')
+
+const filterFromDisplay = ref('')
+const filterToDisplay = ref('')
+
 const filterUserId = ref<number | null>(null)
 
 const isAdmin = computed(() => me.value?.role_code === 'ADMIN')
@@ -142,6 +176,69 @@ function formatDate(value?: string | null) {
   return `${parts[2]}/${parts[1]}/${parts[0]}`
 }
 
+dateDisplay.value = formatDate(date.value)
+endDisplay.value = formatDate(end.value)
+
+function parseDisplayDate(value: string) {
+  const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+
+  if (!match) return ''
+
+  const [, day, month, year] = match
+
+  const parsed = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  )
+
+  if (
+    parsed.getFullYear() !== Number(year) ||
+    parsed.getMonth() !== Number(month) - 1 ||
+    parsed.getDate() !== Number(day)
+  ) {
+    return ''
+  }
+
+  return `${year}-${month}-${day}`
+}
+
+function applyDate() {
+  const value = parseDisplayDate(dateDisplay.value)
+
+  if (value) {
+    date.value = value
+    dateDisplay.value = formatDate(value)
+  }
+}
+
+function applyEndDate() {
+  const value = parseDisplayDate(endDisplay.value)
+
+  if (value) {
+    end.value = value
+    endDisplay.value = formatDate(value)
+  }
+}
+
+function applyFilterFrom() {
+  const value = parseDisplayDate(filterFromDisplay.value)
+
+  if (value) {
+    filterFrom.value = value
+    filterFromDisplay.value = formatDate(value)
+  }
+}
+
+function applyFilterTo() {
+  const value = parseDisplayDate(filterToDisplay.value)
+
+  if (value) {
+    filterTo.value = value
+    filterToDisplay.value = formatDate(value)
+  }
+}
+
 function requestDateText(item: any) {
   const start = formatDate(item.start_date)
   const finish = formatDate(item.end_date)
@@ -213,6 +310,8 @@ if (type.value === 'AFTERNOON_LEAVE') {
 watch(type, applyTypeDefaults)
 
 watch(date, value => {
+  dateDisplay.value = formatDate(value)
+
   if (!isFullDay.value) {
     end.value = value
   }
@@ -220,6 +319,10 @@ watch(date, value => {
   if (end.value < value) {
     end.value = value
   }
+})
+
+watch(end, value => {
+  endDisplay.value = formatDate(value)
 })
 
 async function loadUsers() {
@@ -267,6 +370,8 @@ async function loadHistory() {
 async function clearHistoryFilters() {
   filterFrom.value = ''
   filterTo.value = ''
+  filterFromDisplay.value = ''
+  filterToDisplay.value = ''
   filterUserId.value = null
   await loadHistory()
 }
@@ -304,14 +409,23 @@ async function send() {
       'Vui lòng nhập số phút dự kiến.'
     return
   }
-
+if (
+  canCreateForOthers.value &&
+  !targetUserId.value
+) {
+  error.value = 'Vui lòng chọn nhân viên được xin phép.'
+  return
+}
   sending.value = true
 
   try {
     const data = await api('/api/leave-requests', {
       method: 'POST',
-      body: JSON.stringify({
-        request_type: type.value,
+body: JSON.stringify({
+  user_id: canCreateForOthers.value
+    ? targetUserId.value
+    : me.value?.id,
+  request_type: type.value,
         start_date: date.value,
         end_date: isFullDay.value
           ? end.value
@@ -362,6 +476,7 @@ function cancel() {
   date.value = today
   end.value = today
   applyTypeDefaults()
+  targetUserId.value = me.value?.id ?? null
 }
 
 async function deleteRequest(item: any) {
@@ -419,7 +534,7 @@ onMounted(async () => {
 applyTypeDefaults()
     const currentUser = await api('/api/auth/me')
     me.value = currentUser.user
-
+targetUserId.value = Number(me.value.id)
     await loadUsers()
     await loadHistory()
   } catch (e: any) {
@@ -439,6 +554,26 @@ applyTypeDefaults()
       </p>
 
       <div class="card leave">
+	  <div v-if="canCreateForOthers" class="mb-5">
+  <v-autocomplete
+    v-model="targetUserId"
+    :items="targetUsers"
+    item-title="full_name"
+    item-value="id"
+    label="Tạo yêu cầu cho"
+    placeholder="Chọn nhân viên"
+    variant="outlined"
+    density="comfortable"
+    :clearable="false"
+    prepend-inner-icon="mdi-account-switch"
+  />
+
+  <p class="muted">
+    Bạn có quyền tạo yêu cầu thay người khác.
+    Yêu cầu sẽ được ghi nhận cho nhân viên được chọn.
+  </p>
+</div>
+
         <h3>1. Loại yêu cầu</h3>
 
         <div class="typegrid">
@@ -461,25 +596,33 @@ applyTypeDefaults()
           class="dates"
         >
           <v-text-field
-            v-model="date"
-            type="date"
-            label="Từ ngày"
-          />
+  v-model="dateDisplay"
+  type="text"
+  label="Từ ngày"
+  placeholder="dd/MM/yyyy"
+  @blur="applyDate"
+  @keyup.enter="applyDate"
+/>
 
           <v-text-field
-            v-model="end"
-            type="date"
-            label="Đến ngày"
-            :min="date"
-          />
+  v-model="endDisplay"
+  type="text"
+  label="Đến ngày"
+  placeholder="dd/MM/yyyy"
+  @blur="applyEndDate"
+  @keyup.enter="applyEndDate"
+/>
         </div>
 
         <div v-else>
           <v-text-field
-            v-model="date"
-            type="date"
-            label="Ngày"
-          />
+  v-model="dateDisplay"
+  type="text"
+  label="Ngày"
+  placeholder="dd/MM/yyyy"
+  @blur="applyDate"
+  @keyup.enter="applyDate"
+/>
         </div>
 
         <v-alert
@@ -611,19 +754,25 @@ applyTypeDefaults()
         </div>
 
         <div class="card history-filter">
-          <v-text-field
-            v-model="filterFrom"
-            type="date"
-            label="Từ ngày"
-            hide-details
-          />
+  <v-text-field
+  v-model="filterFromDisplay"
+  type="text"
+  label="Từ ngày"
+  placeholder="dd/MM/yyyy"
+  hide-details
+  @blur="applyFilterFrom"
+  @keyup.enter="applyFilterFrom"
+/>
 
-          <v-text-field
-            v-model="filterTo"
-            type="date"
-            label="Đến ngày"
-            hide-details
-          />
+<v-text-field
+  v-model="filterToDisplay"
+  type="text"
+  label="Đến ngày"
+  placeholder="dd/MM/yyyy"
+  hide-details
+  @blur="applyFilterTo"
+  @keyup.enter="applyFilterTo"
+/>
 
           <v-select
             v-model="filterUserId"
@@ -695,11 +844,21 @@ applyTypeDefaults()
                 :key="item.id"
               >
                 <td>
-                  <b>{{ item.full_name }}</b>
-                  <small>
-                    {{ item.department || '—' }}
-                  </small>
-                </td>
+  <b>{{ item.full_name }}</b>
+
+  <small>
+    {{ item.department || '—' }}
+  </small>
+
+  <small
+    v-if="
+      item.created_by_user_id &&
+      Number(item.created_by_user_id) !== Number(item.user_id)
+    "
+  >
+    Tạo bởi: {{ item.created_by_name || 'Không xác định' }}
+  </small>
+</td>
 
                 <td>
                   {{ typeName(item.request_type) }}
@@ -765,9 +924,19 @@ applyTypeDefaults()
             <div class="request-card-header">
               <div>
                 <b>{{ item.full_name }}</b>
-                <small>
-                  {{ item.department || '—' }}
-                </small>
+
+<small>
+  {{ item.department || '—' }}
+</small>
+
+<small
+  v-if="
+    item.created_by_user_id &&
+    Number(item.created_by_user_id) !== Number(item.user_id)
+  "
+>
+  Tạo bởi: {{ item.created_by_name || 'Không xác định' }}
+</small>
               </div>
 
               <span

@@ -28,6 +28,7 @@ type User = {
   role_code: string
   role_name: string
   active: number
+  can_create_request_for_others: number
 }
 
 const users = ref<User[]>([])
@@ -35,6 +36,7 @@ const roles = ref<Role[]>([])
 const departments = ref<Department[]>([])
 
 const loading = ref(false)
+const delegationSavingId = ref<number | null>(null)
 const error = ref('')
 const search = ref('')
 
@@ -202,6 +204,40 @@ async function changeStatus() {
   }
 }
 
+async function toggleDelegation(user: User) {
+  if (delegationSavingId.value !== null) return
+
+  const grant = user.can_create_request_for_others !== 1
+
+  const confirmed = window.confirm(
+    `Bạn có chắc muốn ${grant ? 'cấp' : 'thu hồi'} quyền nhập yêu cầu thay người khác cho ${user.full_name}?`
+  )
+
+  if (!confirmed) return
+
+  error.value = ''
+  delegationSavingId.value = user.id
+
+  try {
+    await api(
+      `/api/admin/users/${user.id}/request-delegation`,
+      {
+        method: 'PUT',
+body: JSON.stringify({
+  enabled: grant
+})
+      }
+    )
+
+    await loadData()
+  } catch (e: any) {
+    error.value =
+      e?.message || 'Không thể thay đổi quyền nhập thay.'
+  } finally {
+    delegationSavingId.value = null
+  }
+}
+
 onMounted(loadData)
 </script>
 
@@ -284,10 +320,40 @@ onMounted(loadData)
               >
                 {{ user.active ? 'Đang hoạt động' : 'Đã khóa' }}
               </v-chip>
+			  <v-chip
+  v-if="user.can_create_request_for_others === 1"
+  size="small"
+  color="info"
+  variant="tonal"
+>
+  Được nhập thay
+</v-chip>
             </div>
           </div>
 
           <div class="actions">
+		  <v-btn
+  :icon="
+    user.can_create_request_for_others === 1
+      ? 'mdi-account-check'
+      : 'mdi-account-plus-outline'
+  "
+  variant="text"
+  :color="
+    user.can_create_request_for_others === 1
+      ? 'success'
+      : 'primary'
+  "
+  :title="
+    user.can_create_request_for_others === 1
+      ? 'Thu hồi quyền nhập thay'
+      : 'Cấp quyền nhập thay'
+  "
+  :loading="delegationSavingId === user.id"
+  :disabled="!user.active || delegationSavingId !== null"
+  @click="toggleDelegation(user)"
+/>
+
             <v-btn
               icon="mdi-pencil"
               variant="text"
